@@ -1,13 +1,10 @@
 let board = null;
 let game = new Chess();
-let stockfish = new Worker('stockfish.js');
 let playerColor = 'white';
-let isHintRequest = false; // Phân biệt Stockfish đang tính toán để đi hay để gợi ý nước đi
 
 const $status = $('#status');
 const $difficulty = $('#difficulty');
 
-// Cấu hình bàn cờ ban đầu
 const config = {
     draggable: true,
     position: 'start',
@@ -18,19 +15,16 @@ const config = {
 };
 board = Chessboard('myBoard', config);
 
-// Xóa màu các ô đang được highlight gợi ý cũ
 function removeHighlights() {
     $('#myBoard .square-55d63').removeClass('highlight-hint');
 }
 
-// Đổ màu vàng lên ô cờ đi và ô cờ đến để người chơi dễ nhìn
 function highlightSquares(from, to) {
     removeHighlights();
     $('#myBoard .square-' + from).addClass('highlight-hint');
     $('#myBoard .square-' + to).addClass('highlight-hint');
 }
 
-// Ngăn cản di chuyển quân cờ nếu game kết thúc hoặc sai lượt màu cờ đã chọn
 function onDragStart(source, piece, position, orientation) {
     if (game.game_over()) return false;
 
@@ -40,56 +34,44 @@ function onDragStart(source, piece, position, orientation) {
     }
 }
 
-// Xử lý khi người dùng thả quân cờ xuống ô mới
 function onDrop(source, target) {
     let move = game.move({
         from: source,
         to: target,
-        promotion: 'q' // Mặc định phong Hậu khi tốt xuống đáy
+        promotion: 'q'
     });
 
     if (move === null) return 'snapback';
 
-    removeHighlights(); // Xóa màu ô gợi ý ngay khi người chơi thực hiện nước đi mới
+    removeHighlights();
     updateStatus();
     
-    // Kích hoạt bot Stockfish phản đòn sau 250ms
-    window.setTimeout(makeEngineMove, 250);
+    window.setTimeout(makeBotMove, 250);
 }
 
 function onSnapEnd() {
     board.position(game.fen());
 }
 
-// Gửi tín hiệu yêu cầu Stockfish tính toán nước đi cho BOT
-function makeEngineMove() {
+// Gọi API lấy nước đi của Bot
+function makeBotMove() {
     if (game.game_over()) return;
 
-    isHintRequest = false; 
-    $status.html('Stockfish đang suy nghĩ...');
-    
-    stockfish.postMessage('position fen ' + game.fen());
-    let depth = $difficulty.val();
-    stockfish.postMessage('go depth ' + depth);
-}
+    $status.html('Bot đang suy nghĩ...');
+    let fen = game.fen();
+    let level = $difficulty.val();
 
-// Lắng nghe phản hồi trả về từ file Stockfish Worker ngầm
-stockfish.onmessage = function(event) {
-    let line = event.data;
-    if (line.indexOf('bestmove') > -1) {
-        let match = line.match(/^bestmove\s([a-h][1-8])([a-h][1-8])([qrbn])?/);
-        if (match) {
-            let fromSquare = match[1];
-            let toSquare = match[2];
-            let promotionPiece = match[3];
+    // Sử dụng API Stockfish trực tuyến miễn phí công khai
+    fetch(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=${level * 3}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.bestmove) {
+                // Parse chuỗi "bestmove e2e4 ..." thành các ô cụ thể
+                let bestMove = data.bestmove.split(' ')[1]; 
+                let fromSquare = bestMove.substring(0, 2);
+                let toSquare = bestMove.substring(2, 4);
+                let promotionPiece = bestMove.substring(4, 5) || 'q';
 
-            if (isHintRequest) {
-                // NẾU LÀ GỢI Ý: Hiện chữ hướng dẫn và highlight ô, không tự ý di chuyển quân của người chơi
-                $status.html(`💡 Gợi ý: Di chuyển quân từ <b>${fromSquare.toUpperCase()}</b> đến <b>${toSquare.toUpperCase()}</b>`);
-                highlightSquares(fromSquare, toSquare);
-                isHintRequest = false;
-            } else {
-                // NẾU LÀ BOT ĐI THẬT: Thực hiện di chuyển quân trên bàn cờ
                 game.move({
                     from: fromSquare,
                     to: toSquare,
@@ -97,12 +79,16 @@ stockfish.onmessage = function(event) {
                 });
                 board.position(game.fen());
                 updateStatus();
+            } else {
+                $status.html('Lỗi kết nối với Bot, vui lòng thử lại!');
             }
-        }
-    }
-};
+        })
+        .catch(err => {
+            console.error(err);
+            $status.html('Không thể kết nối tới máy chủ Bot.');
+        });
+}
 
-// Cập nhật dòng trạng thái thông báo
 function updateStatus() {
     let status = '';
     let moveColor = game.turn() === 'b' ? 'Đen' : 'Trắng';
@@ -120,37 +106,44 @@ function updateStatus() {
     $status.html(status);
 }
 
-// XỬ LÝ SỰ KIỆN NÚT GỢI Ý (HINT)
+// Gợi ý nước đi bằng API
 $('#hintBtn').on('click', () => {
     if (game.game_over()) return;
     
-    // Kiểm tra xem có đúng lượt của người chơi không
     let isWhiteTurn = game.turn() === 'w';
     if ((playerColor === 'white' && !isWhiteTurn) || (playerColor === 'black' && isWhiteTurn)) {
-        $status.html('Chờ bot đi xong lượt đã nhé!');
+        $status.html('Chờ đến lượt của bạn đã nhé!');
         return;
     }
 
     $status.html('Đang tìm nước đi tối ưu nhất cho bạn...');
-    isHintRequest = true; 
+    let fen = game.fen();
     
-    stockfish.postMessage('position fen ' + game.fen());
-    stockfish.postMessage('go depth 10'); // Gợi ý nhanh ở depth 10 để đỡ phải đợi lâu
+    fetch(`https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=8`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.bestmove) {
+                let bestMove = data.bestmove.split(' ')[1];
+                let fromSquare = bestMove.substring(0, 2);
+                let toSquare = bestMove.substring(2, 4);
+
+                $status.html(`💡 Gợi ý: Di chuyển từ <b>${fromSquare.toUpperCase()}</b> đến <b>${toSquare.toUpperCase()}</b>`);
+                highlightSquares(fromSquare, toSquare);
+            }
+        });
 });
 
-// Nút chơi lại
 $('#restartBtn').on('click', () => {
     removeHighlights();
     game.reset();
     board.start();
     if (playerColor === 'black') {
         board.flip();
-        makeEngineMove();
+        makeBotMove();
     }
     updateStatus();
 });
 
-// Nút đổi bên
 $('#flipBtn').on('click', () => {
     removeHighlights();
     playerColor = playerColor === 'white' ? 'black' : 'white';
@@ -158,7 +151,7 @@ $('#flipBtn').on('click', () => {
     game.reset();
     board.start();
     if (playerColor === 'black') {
-        makeEngineMove();
+        makeBotMove();
     }
     updateStatus();
 });
