@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quzxyz Chess Bot vs Stockfish</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Chơi Cờ Vua Với Stockfish</h1>
+        
+        <div class="game-container">
+            <div id="myBoard" style="width: 400px; max-width: 100%;"></div>
+
+            <div class="controls">
+                <h3>Bảng Điều Khiển</h3>
+                <div class="status-box">
+                    <p>Trạng thái: <span id="status">Lượt của bạn (Trắng)</span></p>
+                </div>
+                
+                <div class="setting-group">
+                    <label for="difficulty">Độ khó (Depth):</label>
+                    <select id="difficulty">
+                        <option value="2">Dễ (Depth 2)</option>
+                        <option value="5" selected>Trung bình (Depth 5)</option>
+                        <option value="10">Khó (Depth 10)</option>
+                        <option value="15">Siêu khó (Depth 15)</option>
+                    </select>
+                </div>
+
+                <button id="restartBtn" class="btn">Chơi Lại</button>
+                <button id="flipBtn" class="btn">Đổi Bên (Đen/Trắng)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    <script src="stockfish.js"></script>
+    <script src="script.js"></script>
+</body>
+              </html>
